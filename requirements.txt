@@ -1,0 +1,3 @@
+aisuite[all]
+gradio
+python-dotenv

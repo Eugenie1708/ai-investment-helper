@@ -1,28 +1,43 @@
-# Install dependencies locally: pip install aisuite[all] gradio
-
 import os
 import random
+
 import aisuite as ai
 import gradio as gr
 
-# ---- API Key (Groq) ----
-# Set your GROQ_API_KEY environment variable before running this script
-# For example: export GROQ_API_KEY=your_key_here
+# -----------------------------
+# 0) Load API key from local env / .env
+# -----------------------------
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # loads .env if exists
+except Exception:
+    pass
+
 api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
-    raise ValueError("Please set the GROQ_API_KEY environment variable")
+    raise RuntimeError(
+        "❌ GROQ_API_KEY not found.\n\n"
+        "✅ Fix options:\n"
+        "1) Create a .env file in the project root with:\n"
+        "   GROQ_API_KEY=your_key_here\n\n"
+        "2) Or set it in Terminal:\n"
+        "   export GROQ_API_KEY='your_key_here'\n"
+    )
+
+# aisuite reads from env
 os.environ["GROQ_API_KEY"] = api_key
 
-# ---- Model setup ----
+# -----------------------------
+# 1) Model setup
+# -----------------------------
 client = ai.Client()
 provider = "groq"
 planner_model = "gemma2-9b-it"
 writer_model = "gemma2-9b-it"
 
-# Optional: chat history (Gradio already keeps history, but you can keep this if you want)
-history = []
-
-# ---- Preset question buttons ----
+# -----------------------------
+# 2) Preset question buttons
+# -----------------------------
 question_sets = {
     "Funds": [
         "What is an index fund?",
@@ -46,7 +61,9 @@ question_sets = {
     ]
 }
 
-# ---- Step 1: Generate 5 investment reasons ----
+# -----------------------------
+# 3) Generate investment reasons
+# -----------------------------
 def generate_reasons(user_question: str) -> str:
     messages = [
         {
@@ -57,7 +74,8 @@ def generate_reasons(user_question: str) -> str:
                 "funds or bonds.\n"
                 "Rewrite the user's question as a title and respond in bullet points.\n"
                 "Example: If the user asks 'Can I invest in funds using foreign currency?', your title should be "
-                "'Can I invest in funds using foreign currency? Here are five reasons worth considering:'"
+                "'Can I invest in funds using foreign currency? Here are five reasons worth considering:'\n\n"
+                "Important: Do NOT provide buy/sell instructions. This is educational content only."
             )
         },
         {"role": "user", "content": user_question}
@@ -69,44 +87,55 @@ def generate_reasons(user_question: str) -> str:
     )
     return resp.choices[0].message.content.strip()
 
-# ---- Step 2: Classify question type (routing) ----
+# -----------------------------
+# 4) Classify question type
+# -----------------------------
 def classify_question_type(user_input: str) -> str:
     text = user_input.lower()
 
-    # Knowledge-based: definitions / differences / comparisons
+    # Knowledge-based
     if any(k in text for k in ["what is", "define", "definition", "difference", "compare", "vs", "versus"]):
         return "Knowledge"
 
-    # Advice-based: general recommendations
-    elif any(k in text for k in ["how to invest", "what should i buy", "recommend", "suggest", "i want to invest"]):
+    # Advice-based
+    if any(k in text for k in ["how to invest", "what should i buy", "recommend", "suggest", "i want to invest"]):
         return "Advice"
 
-    # Personalized: suitability / personal situation
-    elif any(k in text for k in ["is it suitable for me", "for my situation", "i have", "i am", "my current", "i want"]):
+    # Personalized advice
+    if any(k in text for k in ["is it suitable for me", "for my situation", "i have", "my current", "i am", "i want"]):
         return "Personalized"
 
-    # Fallback
-    else:
-        return "Mixed"
+    return "Mixed"
 
-# ---- Step 3: Generate the final advice ----
-def generate_advice(reasons: str, question_type: str = "Advice") -> str:
+# -----------------------------
+# 5) Generate recommendation text
+# -----------------------------
+def generate_advice(reasons: str, question_type: str) -> str:
     if question_type == "Knowledge":
         system_prompt = (
-            "You are a financial education expert. Use a concise and professional tone to explain the concept.\n"
-            "Give three bullet points, then add one final sentence explaining how this concept relates to funds or bonds."
+            "You are a financial education expert.\n"
+            "Answer concisely in a professional tone.\n"
+            "Use 3 bullet points to explain the concept, then add 1 sentence on how it relates to funds or bonds.\n"
+            "End with: This is for educational purposes only."
         )
     elif question_type == "Personalized":
         system_prompt = (
-            "You are a financial advisor. Based on the context below, provide personalized guidance.\n"
-            "Offer three sample asset allocation mixes: Conservative, Balanced, Aggressive (use percentages).\n"
-            "Explain who each mix fits. Clearly emphasize: this is not financial advice."
+            "You are a financial educator.\n"
+            "Based on the user's context, provide 3 example allocation mixes:\n"
+            "- Conservative\n"
+            "- Balanced\n"
+            "- Aggressive\n"
+            "Use percentages and explain who each fits.\n"
+            "Avoid buy/sell instructions.\n"
+            "Clearly state: This is not financial advice; for educational purposes only."
         )
     else:
         system_prompt = (
-            "You are a professional investment consultant. Based on the reasons below, provide practical guidance.\n"
-            "Use a calm, professional tone. Include suggested asset directions, example allocation ratios, and suitable profiles.\n"
-            "End with a disclaimer: For educational purposes only."
+            "You are a professional investment educator.\n"
+            "Based on the reasons below, provide practical, constructive guidance.\n"
+            "Include: suggested asset direction, example allocation ratios, and suitable profiles.\n"
+            "Avoid buy/sell instructions.\n"
+            "End with: For educational purposes only."
         )
 
     messages = [
@@ -120,14 +149,20 @@ def generate_advice(reasons: str, question_type: str = "Advice") -> str:
     )
     return resp.choices[0].message.content.strip()
 
-# ---- Gradio main chatbot function ----
+# -----------------------------
+# 6) Gradio main logic
+# -----------------------------
 def chatbot(user_input, chat_history):
+    user_input = (user_input or "").strip()
+    if not user_input:
+        return "", chat_history
+
     reasons = generate_reasons(user_input)
     qtype = classify_question_type(user_input)
     advice = generate_advice(reasons, qtype)
 
     full_response = (
-        "<div style='background-color:#f8f9fa;border-radius:10px;padding:10px'>"
+        "<div style='background-color:#f8f9fa;border-radius:10px;padding:12px'>"
         "🤖 <b>Investment Reasons</b><br>"
         f"{reasons}<br><br>"
         f"✅ <b>Recommendation ({qtype})</b><br>"
@@ -135,14 +170,16 @@ def chatbot(user_input, chat_history):
         "</div>"
     )
 
-    chat_history.append((f"{user_input}", full_response))
+    chat_history.append((user_input, full_response))
     return "", chat_history
 
 def set_and_submit(topic):
     q = random.choice(question_sets[topic])
     return q, gr.update()
 
-# ---- Build Gradio UI ----
+# -----------------------------
+# 7) Build UI
+# -----------------------------
 with gr.Blocks(
     theme=gr.themes.Soft(),
     css="""
@@ -162,14 +199,15 @@ with gr.Blocks(
     }
     """
 ) as demo:
+
     gr.Markdown("""
     <div style='text-align:center;'>
       <h2>AI Investment Helper</h2>
-      <p>Ask one simple question to understand directions for funds and bonds</p>
+      <p>Ask one simple question to learn directions for funds and bonds (educational only)</p>
     </div>
     """)
 
-    chatbot_interface = gr.Chatbot(label="", height=400)
+    chatbot_interface = gr.Chatbot(label="", height=420)
     user_input = gr.Textbox(label="", placeholder="Type your investment question here...", lines=2)
     submit_btn = gr.Button("🚀 Submit", size="lg")
 
@@ -178,7 +216,7 @@ with gr.Blocks(
         fund_btn = gr.Button("📈 Funds", elem_classes="circle-btn")
         fx_btn = gr.Button("💱 Foreign Currency", elem_classes="circle-btn")
         bond_btn = gr.Button("🧾 Bonds", elem_classes="circle-btn")
-        macro_btn = gr.Button("📊 What should I watch now?", elem_classes="circle-btn")
+        macro_btn = gr.Button("📊 Macro / Market", elem_classes="circle-btn")
 
     fund_btn.click(fn=lambda: set_and_submit("Funds"), inputs=[], outputs=[user_input, chatbot_interface]).then(
         fn=chatbot, inputs=[user_input, chatbot_interface], outputs=[user_input, chatbot_interface]
@@ -198,9 +236,9 @@ with gr.Blocks(
     gr.Markdown("""
     <div style='background-color:#f4f4f5;border-radius:12px;padding:12px;margin-top:24px'>
       <b>☁️ Reminder:</b><br>
-      This system is for educational purposes only and does not constitute financial advice.
+      This app is for educational purposes only and does not constitute financial advice.
       Please make decisions based on your own risk assessment.
     </div>
     """)
 
-demo.launch()
+demo.launch(server_name="127.0.0.1", server_port=7860, share=False)
