@@ -32,8 +32,9 @@ os.environ["GROQ_API_KEY"] = api_key
 # -----------------------------
 client = ai.Client()
 provider = "groq"
-planner_model = "gemma2-9b-it"
-writer_model = "gemma2-9b-it"
+planner_model = "llama-3.1-8b-instant"
+writer_model = "llama-3.1-8b-instant"
+
 
 # -----------------------------
 # 2) Preset question buttons
@@ -170,6 +171,15 @@ def chatbot(user_input, chat_history):
         "</div>"
     )
 
+    # Ensure chat_history is a list
+    chat_history = chat_history or []
+
+    # Append in messages format
+    chat_history.append({"role": "user", "content": user_input})
+    chat_history.append({"role": "assistant", "content": full_response})
+
+    return "", chat_history
+
     chat_history.append((user_input, full_response))
     return "", chat_history
 
@@ -207,7 +217,7 @@ with gr.Blocks(
     </div>
     """)
 
-    chatbot_interface = gr.Chatbot(label="", height=420)
+    chatbot_interface = gr.Chatbot(label="", height=420, type="messages")
     user_input = gr.Textbox(label="", placeholder="Type your investment question here...", lines=2)
     submit_btn = gr.Button("🚀 Submit", size="lg")
 
