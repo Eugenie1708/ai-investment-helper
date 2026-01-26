@@ -6,7 +6,7 @@ An educational AI-powered web app that helps absolute beginners understand **fun
 
 > ⚠️ **Educational use only. This is not financial advice.**
 
----
+
 
 ## ✨ Features
 
@@ -37,7 +37,7 @@ An educational AI-powered web app that helps absolute beginners understand **fun
   - No buy/sell instructions
   - Clear disclaimers included in responses
 
----
+
 
 ## 🎯 Design Philosophy & User Flow
 
@@ -94,9 +94,9 @@ Planned enhancements:
 - **Data-driven analysis** (trend comparison, scenario simulations)
 - **Smarter question generation** (dynamic learning paths)
 
----
 
-## 🧩 System Architecture
+
+## System Architecture
 
 ```text
 User Question
@@ -120,5 +120,5 @@ Gradio UI Output
   - Model: `llama-3.1-8b-instant`
 - **python-dotenv** – environment variable management
 
----
+
 
