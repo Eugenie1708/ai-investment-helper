@@ -109,7 +109,7 @@ LLM #2: Educational Recommendation (intent-aware response)
    ↓
 Gradio UI Output
 
----
+```
 
 ## 🛠️ Tech Stack
 
